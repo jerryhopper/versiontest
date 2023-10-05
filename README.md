@@ -5,9 +5,9 @@
 ## JAVA 
 
 [me@lqyr9301 ~]$ java -version
-java version "1.8.0_202"
+<code>java version "1.8.0_202"
 Java(TM) SE Runtime Environment (build 1.8.0_202-b08)
-Java HotSpot(TM) 64-Bit Server VM (build 25.202-b08, mixed mode)
+Java HotSpot(TM) 64-Bit Server VM (build 25.202-b08, mixed mode)</code>
 
 [my@debian ~]$ java -version
 openJDK 19.0.2 2023-01-17
