@@ -17,6 +17,11 @@ OpenJDK Runtime Environment (build 19.0.2+7-Ubuntu-0ubuntu322.04)
 OpenJDK 64-Bit Server VM (Build 19.0.2+7-ubuntu-0ubuntu322.04, mixed mode, sharing)</code>
 
 
+
+java -version 2>&1|head n1|awk '{gsub(/"/,"",$3); print $3}'
+
+
+
 ## OPENSSL
 
 
