@@ -1,0 +1,385 @@
+#!/bin/bash
+
+
+set -e
+
+# Tempfile location
+tmpfile=/tmp/.versiontest.tmp
+
+
+# define variables
+openssl_banner=""
+openssl_name=""
+openssl_version=""
+openssl_date=""
+openssl_path=""
+
+# define empty variables
+tomcat_banner=""
+tomcat_version=""
+tomcat_jvmvendor=""
+tomcat_jvmversion=""
+tomcat_osname=""
+tomcat_osversion=""
+tomcat_arch=""
+
+# define variables
+java_banner=""
+java_version=""
+java_runtime=""
+java_path=""
+
+# define variables
+filebeat_path=""
+filebeat_version=""
+
+
+if [ ! $1 ];then
+  echo "Usage:"
+  echo "  $0 (application) (property)"
+  echo "Example: $0 java version"
+  echo ""
+  echo "Available application/properties:"
+  echo "  openssl : version,name,banner,date,path"
+  echo "  tomcat : version,banner,jvmversion,jvmvendor,osname,osversion,arch"
+  echo "  java : banner,version,runtime,path"
+  echo "  filebeat : version,path"  
+exit
+
+fi
+# enable or disable test mode (uses docker)
+if [ $1 = "test" ];then
+   dev=1
+else
+   dev=0
+fi
+
+fatal (){
+    echo "FATAL: $1"
+    exit 1
+}
+
+command_exists (){
+   if ! command -v $1 &> /dev/null
+   then
+      echo "FATAL: fatal java not found"
+   fi
+}
+
+
+
+
+
+filebeat_version (){
+    command="filebeat version"
+    if [ $dev = "1" ]; then
+        #echo "docker run -it ${dockerTagFilebeat} ${command} "
+    	resultline="$( docker run -it --rm ${dockerTagFilebeat} ${command} )"
+    else
+       resultline=$($command)
+    fi
+    #filebeat_banner=$resultline
+    filebeat_version=$(echo $resultline|awk '{print $3}')
+
+    # Get the path of filebeat
+    command="which filebeat"
+    if [ $dev = "1" ];then
+       #echo "docker run -it --rm ${dockerTagFilebeat} ${command}"
+       filebeat_path=$(docker run  --rm ${dockerTagFilebeat} ${command})
+    else
+       filebeat_path=$($command)
+    fi
+    #echo $filebeat_path
+
+}
+
+
+java_version (){
+    # define variables
+    java_banner=""
+    java_version=""
+    java_runtime=""
+    java_path=""
+    
+    # the command
+    command="java -version"
+    if [ $dev = "1" ];then
+       #echo "docker run --rm ${dockerTagJava} ${command}"
+       resultlines=$(docker run  --rm ${dockerTagJava} ${command} >$tmpfile 2>&1 )
+    else
+       resultlines=$( ${command} >$tmpfile 2>&1 )
+    fi
+    
+    java_version="$(cat $tmpfile|head -n1|awk '{print $3}'|xargs)"
+    
+    java_runtime="$(cat $tmpfile|head -n2|tail -n1|xargs)" #flav
+    
+    java_banner="$(cat $tmpfile|head -n3|tail -n1|xargs)" #..
+    
+    # Get the path of java
+    command="which java"
+    if [ $dev = "1" ];then
+       #echo "docker run --rm ${dockerTagJava} ${command} >$tmpfile"
+       java_path=$(docker run --rm ${dockerTagJava} ${command})
+    else
+       java_path=$($command)
+    fi
+}
+
+
+
+tomcat_version (){
+   # define empty variables
+   tomcat_banner=""
+   tomcat_version=""
+   tomcat_jvmvendor=""
+   tomcat_jvmversion=""
+   tomcat_osname=""
+   tomcat_osversion=""
+   tomcat_arch=""
+
+   # The actual command.
+   command="java -cp lib/catalina.jar org.apache.catalina.util.ServerInfo"
+   # This is for development purpose
+   if [ $dev = "1" ];then
+      # redirect command-output to file.
+      resultlines=$(docker run --rm ${dockerTagTomcat} ${command} >$tmpfile)
+   else
+      # redirect command-output to file
+      resultlines=$(${command}>$tmpfile)
+   fi
+
+   # read the output line by line
+   while IFS= read -r line
+   do
+     key=$(echo "$line"|awk 'BEGIN {FS=":";}{print $1}')
+     # Check for wanted keys
+     # Server banner
+     if [ "$key" = "Server version" ];then
+       tomcat_banner=$(echo "$line"|awk 'BEGIN {FS=":";}{print $2}'|xargs)
+     elif [ "$key" = "Server number" ];then
+       tomcat_version=$(echo "$line"|awk 'BEGIN {FS=":";}{print $2}'|xargs)
+     elif [ "$key" = "JVM Version" ];then
+       tomcat_jvmversion=$(echo "$line"|awk 'BEGIN {FS=":";}{print $2}'|xargs)
+     elif [ "$key" = "JVM Vendor" ];then
+       tomcat_jvmvendor=$(echo "$line"|awk 'BEGIN {FS=":";}{print $2}'|xargs)
+     elif [ "$key" = "OS Name" ];then
+       tomcat_osname=$(echo "$line"|awk 'BEGIN {FS=":";}{print $2}'|xargs)
+     elif [ "$key" = "OS Version" ];then
+       tomcat_osversion=$(echo "$line"|awk 'BEGIN {FS=":";}{print $2}'|xargs)
+     elif [ "$key" = "Architecture" ];then
+       tomcat_arch=$(echo "$line"|awk 'BEGIN {FS=":";}{print $2}'|xargs)
+
+     fi
+   done < "$tmpfile"
+
+}
+
+openssl_version (){
+
+   
+   # the command
+   command="openssl version"
+   if [ $dev = "1" ];then
+      #echo "docker run -it --rm ${dockerTagOpenssl} ${command}"
+      resultline=$(docker run -it --rm ${dockerTagOpenssl} ${command}  )
+      #resultline="OpenSSL 1.0.1e-fips 11 Feb 2013"
+   else
+      resultline=$(${command})
+   fi
+   openssl_version=$(echo $resultline|awk '{print $2}')
+   openssl_name=$(echo $resultline|awk '{print $1}')
+   openssl_banner="${openssl_name}/${openssl_version}"
+   openssl_date=$(echo $resultline|awk '{print $3}')
+   openssl_path=$(command -v openssl)
+}
+
+if [ "$1" = "test" ];then
+   #echo "* $2 $3"
+   application="$2"
+   property="$3"
+else
+   #echo "$1 $2"
+   application="$1"
+   property="$2"
+fi
+
+
+
+
+
+case $application in
+openssl)
+  #echo "$0 $application ${property}"
+  if [ "$property" = "" ];then
+    echo "Missing property!"
+    echo "Example: $0 $application (option)"
+    echo "Options: version,name,banner,date,path"
+    exit 1
+  fi
+  dockerTagOpenssl="finalgene/openssh"
+  openssl_version
+  if [ "$property" = "version" ];then
+    echo "${openssl_version}"
+    exit 0
+  elif [ "$property" = "banner" ];then
+    echo "${openssl_banner}"
+    exit 0
+  elif [ "$property" = "path" ];then
+    echo "${openssl_path}"
+    exit 0
+  elif [ "$property" = "date" ];then
+    echo "${openssl_date}"
+    exit 0
+  elif [ "$property" = "name" ];then
+    echo "${openssl_name}"
+    exit 0
+  fi
+  #echo "SSL : '${openssl_banner}','${openssl_version}',${openssl_path}"
+;;
+java)
+  #echo "$0 $application ${property}"
+  if [ "$property" = "" ];then
+    echo "Missing property!"
+    echo "Example: $0 $application (option)"
+    echo "Options: version,banner,runtime,path"
+    exit 1
+  fi
+  dockerTagJava="openjdk:22-slim-bookworm"
+  java_version
+  if [ "$property" = "version" ];then
+    echo "${java_version}"
+    exit 0
+  elif [ "$property" = "banner" ];then
+    echo "${java_banner}"
+    exit 0
+  elif [ "$property" = "path" ];then
+    echo "${java_path}"
+    exit 0
+  elif [ "$property" = "runtime" ];then
+    echo "${java_runtime}"
+    exit 0
+  fi
+
+;;
+tomcat)
+  #echo "$0 $application ${property}"
+  if [ "$property" = "" ];then
+    echo "Missing property!"
+    echo "Example: $0 $application (option)"
+    echo "Options: version,banner,jvmversion,jvmvendor,osname,osversion,arch"
+    exit 1
+  fi
+  
+  dockerTagTomcat="tomcat:jre17-temurin-jammy"
+  tomcat_version
+
+  if [ "$property" = "version" ];then
+    echo "${tomcat_version}"
+    exit 0
+  elif [ "$property" = "banner" ];then
+    echo "${tomcat_banner}"
+    exit 0
+  elif [ "$property" = "jvmversion" ];then
+    echo "${tomcat_jvmversion}"
+    exit 0
+  elif [ "$property" = "jvmvendor" ];then
+    echo "${tomcat_jvmvendor}"
+    exit 0
+  elif [ "$property" = "osname" ];then
+    echo "${tomcat_osname}"
+    exit 0
+  elif [ "$property" = "osversion" ];then
+    echo "${tomcat_jvmversion}"
+    exit 0
+  elif [ "$property" = "arch" ];then
+    echo "${tomcat_arch}"
+    exit 0
+
+  fi
+
+
+;;
+filebeat)
+  #echo "$0 $application ${property}"
+  if [ "$property" = "" ];then
+    echo "Missing property!"
+    echo "Example: $0 $application (option)"
+    echo "Options: version,path"
+    exit 1
+  fi
+  
+  dockerTagFilebeat="elastic/filebeat:8.10.2"
+  filebeat_version
+
+
+  if [ "$property" = "version" ];then
+    echo "${filebeat_version}"
+    exit 0
+  elif [ "$property" = "banner" ];then
+    echo "${filebeat_path}"
+    exit 0
+  fi
+;;
+*)
+  echo ">*";;
+esac
+
+
+
+exit
+
+
+
+
+
+
+
+
+
+
+
+
+
+#command_exists "java"
+
+dockerTagJava="openjdk:22-slim-bookworm"
+java_version
+echo "JAVA:  ${java_version},${java_path},${java_runtime}"
+
+#dockerTagJava="eclipse-temurin:17-jre"
+#java_version
+#echo "JAVA:  ${java_version},${java_path},${java_runtime}"
+
+#dockerTagJava="java:8u111-jdk-alpine"
+#java_version
+#echo "JAVA:  ${java_version},${java_path},${java_runtime}"
+
+#dockerTagJava="java:8u111-jre-alpine"
+#java_version
+#echo "JAVA:  ${java_version},${java_path},${java_runtime}"
+
+
+
+
+dockerTagJava="java:8u20"
+java_version
+echo "JAVA:  ${java_version},${java_path},${java_runtime}"
+
+
+
+# test variables.
+
+dockerTagOpenssl="finalgene/openssh"
+openssl_version
+echo "SSL : '${openssl_banner}','${openssl_version}',${openssl_path}"
+
+
+dockerTagTomcat="tomcat:jre17-temurin-jammy"
+tomcat_version
+echo "TCAT : '${tomcat_banner}' '${tomcat_jvmvendor}' '${tomcat_jvmversion}' "
+
+
+dockerTagFilebeat="elastic/filebeat:8.10.2"
+filebeat_version
+echo "FBEAT: '${filebeat_version}',${filebeat_path}"
