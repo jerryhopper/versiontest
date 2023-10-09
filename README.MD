@@ -3,16 +3,52 @@
 
 Usage:
 
-./vget (application) (property)
+```vget (application) (property)```
 
-Example: ./vget java version
+Example: 
 
-Available application/properties:
+```vget java version```
 
-openssl : version,name,banner,date,path
+The above fetches the java version.
 
-tomcat : version,banner,jvmversion,jvmvendor,osname,osversion,arch
+Other possible applications:
 
-java : banner,version,runtime,path
+* java
+* openssl
+* tomcat
+* filebeat
 
-filebeat : version,path
+
+
+### Openssl
+The available application/properties are:
+
+* version 
+* name*
+* banner
+* date
+* path
+
+Example: ```vget openssl path```
+
+### Tomcat
+
+* version
+* banner
+* jvmversion
+* jvmvendor
+* osname
+* osversion
+* arch
+
+### Java
+
+* banner
+* version
+* runtime
+* path
+
+### Filebeat
+
+* version
+* path
