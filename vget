@@ -181,7 +181,7 @@ openssl_version (){
    # the command
    command="openssl version"
    if [ $dev = "1" ];then
-      #echo "docker run -it --rm ${dockerTagOpenssl} ${command}"
+      #echo "docker run --rm ${dockerTagOpenssl} ${command}"
       resultline=$(docker run -it --rm ${dockerTagOpenssl} ${command}  )
       #resultline="OpenSSL 1.0.1e-fips 11 Feb 2013"
    else
