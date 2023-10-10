@@ -44,15 +44,17 @@ if [ ! $1 ];then
   echo "  tomcat : version,banner,jvmversion,jvmvendor,osname,osversion,arch"
   echo "  java : banner,version,runtime,path"
   echo "  filebeat : version,path"  
-exit
+  exit
+fi
 
-fi
-# enable or disable test mode (uses docker)
-if [ $1 = "test" ];then
-   dev=1
-else
-   dev=0
-fi
+
+
+
+
+
+
+
+
 
 fatal (){
     echo "FATAL: $1"
@@ -70,11 +72,18 @@ command_exists (){
 
 
 
+
+
+
+
+
+
+
 filebeat_version (){
     command="filebeat version"
     if [ $dev = "1" ]; then
-        #echo "docker run -it ${dockerTagFilebeat} ${command} "
-    	resultline="$( docker run -it --rm ${dockerTagFilebeat} ${command} )"
+    	resultline="$( docker run --rm ${dockerTagFilebeat} ${command} )"
+        echo "Using docker tag: ${dockerTagFilebeat}  running command ${command}" 
     else
        resultline=$($command)
     fi
@@ -104,8 +113,9 @@ java_version (){
     # the command
     command="java -version"
     if [ $dev = "1" ];then
-       #echo "docker run --rm ${dockerTagJava} ${command}"
        resultlines=$(docker run  --rm ${dockerTagJava} ${command} >$tmpfile 2>&1 )
+       #echo "Using docker tag: ${dockerTagJava}  running command ${command}"
+       #cat $tmpfile
     else
        resultlines=$( ${command} >$tmpfile 2>&1 )
     fi
@@ -119,8 +129,9 @@ java_version (){
     # Get the path of java
     command="which java"
     if [ $dev = "1" ];then
-       #echo "docker run --rm ${dockerTagJava} ${command} >$tmpfile"
-       java_path=$(docker run --rm ${dockerTagJava} ${command})
+       echo "docker run --rm ${dockerTagJava} ${command} >$tmpfile"
+       java_path=$(docker run --rm ${dockerTagJava} ${command} 2>&1)
+       echo $java_path
     else
        java_path=$($command)
     fi
@@ -144,6 +155,7 @@ tomcat_version (){
    if [ $dev = "1" ];then
       # redirect command-output to file.
       resultlines=$(docker run --rm ${dockerTagTomcat} ${command} >$tmpfile)
+      echo "Using docker tag: ${dockerTagTomcat}  running command ${command}"
    else
       # redirect command-output to file
       resultlines=$(${command}>$tmpfile)
@@ -176,14 +188,11 @@ tomcat_version (){
 }
 
 openssl_version (){
-
-   
    # the command
    command="openssl version"
    if [ $dev = "1" ];then
-      #echo "docker run --rm ${dockerTagOpenssl} ${command}"
       resultline=$(docker run --rm ${dockerTagOpenssl} ${command}  )
-      #resultline="OpenSSL 1.0.1e-fips 11 Feb 2013"
+      echo "Using docker tag: ${dockerTagOpenssl}  running command ${command}"
    else
       resultline=$(${command})
    fi
@@ -194,10 +203,112 @@ openssl_version (){
    openssl_path=$(command -v openssl)
 }
 
+# --------
+
+runtests(){
+  echo "Run all tests."
+  
+  ########################################################################
+  echo "Testing filebeat."
+  dockerTagFilebeat="elastic/filebeat:8.10.2"
+  filebeat_version
+  testresult="8.10.2"
+  echo -n "Test expects: '${testresult}' as result. "
+  if [ "${filebeat_version}" = "${testresult}" ];then
+    echo "OK (${filebeat_version})"
+  else
+    echo "ERROR (${filebeat_version})"
+    exit 1
+  fi
+  testresult="/usr/share/filebeat/filebeat"
+  echo -n "Test expects: '${testresult}' as result. "
+  if [ "${filebeat_path}" = "${testresult}" ];then
+    echo "OK (${filebeat_path})"
+  else
+    echo "ERROR (${filebeat_path})"
+    exit 1
+  fi
+
+  #########################################################################
+  echo "Testing Java"
+  dockerTagJava="openjdk:22-slim-bookworm"
+  java_version
+  
+  testresult="22-ea"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${java_version}" = "${testresult}" ];then
+    echo "OK (${java_version})"
+  else
+    echo "ERROR (${java_version})"
+    exit 1
+  fi
+
+  testresult="OpenJDK Runtime Environment (build 22-ea+17-1342)"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${java_runtime}" = "${testresult}" ];then
+    echo "OK (${java_runtime})"
+  else
+    echo "ERROR (${java_runtime})"
+    exit 1
+  fi
+
+  testresult="OpenJDK 64-Bit Server VM (build 22-ea+17-1342, mixed mode, sharing)"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${java_banner}" = "${testresult}" ];then
+    echo "OK (${java_banner})"
+  else
+    echo "ERROR (${java_banner})"
+    exit 1
+  fi
+
+
+  testresult=""
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${java_path}" = "${testresult}" ];then
+    echo "OK (${java_path})"
+  else
+    echo "ERROR (${java_path})"
+    exit 1
+  fi
+
+
+
+
+  #echo $filebeat_path
+
+}
+
+# --------
+
+dockerTagFilebeat="elastic/filebeat:8.10.2"
+dockerTagOpenssl="openquantumsafe/openssl3:commit-365196a"
+dockerTagJava="openjdk:22-slim-bookworm"
+dockerTagTomcat="tomcat:jre17-temurin-jammy"
+
+
+
+
+# enable or disable test mode (uses docker)
+
+if [ $1 = "test" ];then
+   dev=1
+else
+   dev=0
+fi
+
+
+# Check commandline options.
+
 if [ "$1" = "test" ];then
    #echo "* $2 $3"
-   application="$2"
-   property="$3"
+   if [ "$2" = "" ];then
+     # If no application specified, run all tests.
+     runtests
+   else
+     # set variables for individual test 
+     application="$2"
+     property="$3"
+   fi
 else
    #echo "$1 $2"
    application="$1"
@@ -217,7 +328,7 @@ openssl)
     echo "Options: version,name,banner,date,path"
     exit 1
   fi
-  dockerTagOpenssl="finalgene/openssh"
+  
   openssl_version
   if [ "$property" = "version" ];then
     echo "${openssl_version}"
@@ -245,7 +356,7 @@ java)
     echo "Options: version,banner,runtime,path"
     exit 1
   fi
-  dockerTagJava="openjdk:22-slim-bookworm"
+  
   java_version
   if [ "$property" = "version" ];then
     echo "${java_version}"
@@ -271,7 +382,7 @@ tomcat)
     exit 1
   fi
   
-  dockerTagTomcat="tomcat:jre17-temurin-jammy"
+  
   tomcat_version
 
   if [ "$property" = "version" ];then
@@ -309,7 +420,7 @@ filebeat)
     exit 1
   fi
   
-  dockerTagFilebeat="elastic/filebeat:8.10.2"
+  
   filebeat_version
 
 
@@ -322,6 +433,7 @@ filebeat)
   fi
 ;;
 *)
+  echo " "
   echo ">*";;
 esac
 
@@ -360,8 +472,6 @@ echo "JAVA:  ${java_version},${java_path},${java_runtime}"
 #echo "JAVA:  ${java_version},${java_path},${java_runtime}"
 
 
-
-
 dockerTagJava="java:8u20"
 java_version
 echo "JAVA:  ${java_version},${java_path},${java_runtime}"
@@ -370,7 +480,7 @@ echo "JAVA:  ${java_version},${java_path},${java_runtime}"
 
 # test variables.
 
-dockerTagOpenssl="finalgene/openssh"
+dockerTagOpenssl="openquantumsafe/openssl3"
 openssl_version
 echo "SSL : '${openssl_banner}','${openssl_version}',${openssl_path}"
 
