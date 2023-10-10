@@ -83,7 +83,7 @@ filebeat_version (){
     command="filebeat version"
     if [ $dev = "1" ]; then
     	resultline="$( docker run --rm ${dockerTagFilebeat} ${command} )"
-        echo "Using docker tag: ${dockerTagFilebeat}  running command ${command}" 
+        #echo "Using docker tag: ${dockerTagFilebeat}  running command ${command}" 
     else
        resultline=$($command)
     fi
@@ -129,9 +129,9 @@ java_version (){
     # Get the path of java
     command="which java"
     if [ $dev = "1" ];then
-       echo "docker run --rm ${dockerTagJava} ${command} >$tmpfile"
+       #echo "docker run --rm ${dockerTagJava} ${command} >$tmpfile"
        java_path=$(docker run --rm ${dockerTagJava} ${command} 2>&1)
-       echo $java_path
+       #echo $java_path
     else
        java_path=$($command)
     fi
@@ -191,16 +191,19 @@ openssl_version (){
    # the command
    command="openssl version"
    if [ $dev = "1" ];then
-      resultline=$(docker run --rm ${dockerTagOpenssl} ${command}  )
+      # 
+      resultline=$(docker run --rm ${dockerTagOpenssl} ${command} >$tmpfile )
       echo "Using docker tag: ${dockerTagOpenssl}  running command ${command}"
    else
-      resultline=$(${command})
+      resultline=$(${command} >$tmpfile )
    fi
-   openssl_version=$(echo $resultline|awk '{print $2}')
-   openssl_name=$(echo $resultline|awk '{print $1}')
-   openssl_banner="${openssl_name}/${openssl_version}"
-   openssl_date=$(echo $resultline|awk '{print $3}')
-   openssl_path=$(command -v openssl)
+   openssl_version="$(cat $tmpfile|awk '{ print $2 }')"
+   #echo $openssl_version
+   #openssl_version=$(echo $resultline|awk '{print $2}')
+   openssl_name="$(cat $tmpfile|awk '{ print $1 }')"
+   openssl_banner="$(cat $tmpfile)"
+   #openssl_date=$(echo $resultline|awk '{print $3}')
+   openssl_path="$(command -v openssl)"
 }
 
 # --------
@@ -209,63 +212,70 @@ runtests(){
   echo "Run all tests."
   
   ########################################################################
+  echo ">"
   echo "Testing filebeat."
+  echo "${0} filebeat version  "
   dockerTagFilebeat="elastic/filebeat:8.10.2"
   filebeat_version
   testresult="8.10.2"
   echo -n "Test expects: '${testresult}' as result. "
   if [ "${filebeat_version}" = "${testresult}" ];then
-    echo "OK (${filebeat_version})"
+    echo "OK"
   else
     echo "ERROR (${filebeat_version})"
     exit 1
   fi
+  echo "${0} filebeat path  "
   testresult="/usr/share/filebeat/filebeat"
   echo -n "Test expects: '${testresult}' as result. "
   if [ "${filebeat_path}" = "${testresult}" ];then
-    echo "OK (${filebeat_path})"
+    echo "OK"
   else
     echo "ERROR (${filebeat_path})"
     exit 1
   fi
 
   #########################################################################
+  echo ">"
   echo "Testing Java"
   dockerTagJava="openjdk:22-slim-bookworm"
   java_version
   
+  echo "${0} java version  "
   testresult="22-ea"
   echo -n "Test expects: '${testresult}' as result "
   if [ "${java_version}" = "${testresult}" ];then
-    echo "OK (${java_version})"
+    echo "OK"
   else
     echo "ERROR (${java_version})"
     exit 1
   fi
-
+  
+  echo "${0} java runtime  "
   testresult="OpenJDK Runtime Environment (build 22-ea+17-1342)"
   echo -n "Test expects: '${testresult}' as result "
   if [ "${java_runtime}" = "${testresult}" ];then
-    echo "OK (${java_runtime})"
+    echo "OK"
   else
     echo "ERROR (${java_runtime})"
     exit 1
   fi
 
+  echo "${0} java banner"
   testresult="OpenJDK 64-Bit Server VM (build 22-ea+17-1342, mixed mode, sharing)"
   echo -n "Test expects: '${testresult}' as result "
   if [ "${java_banner}" = "${testresult}" ];then
-    echo "OK (${java_banner})"
+    echo "OK"
   else
     echo "ERROR (${java_banner})"
     exit 1
   fi
 
-
-  testresult=""
+  echo "${0} java path  "
+  testresult="/usr/local/openjdk-22/bin/java"
   echo -n "Test expects: '${testresult}' as result "
   if [ "${java_path}" = "${testresult}" ];then
-    echo "OK (${java_path})"
+    echo "OK"
   else
     echo "ERROR (${java_path})"
     exit 1
@@ -273,8 +283,131 @@ runtests(){
 
 
 
+  #########################################################################
+  echo ">"
+  echo "Testing OpenSSL"
+  dockerTagOpenssl="openquantumsafe/openssl3:commit-365196a"
+  openssl_version
+  
+  echo "${0} openssl version  "
+  testresult="3.2.0-dev"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${openssl_version}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${openssl_version})"
+    exit 1
+  fi
+
+
+  echo "${0} openssl name  "
+  testresult="OpenSSL"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${openssl_name}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${openssl_name})"
+    exit 1
+  fi
+
+
+  echo "${0} openssl banner  "
+  testresult="OpenSSL 3.2.0-dev  (Library: OpenSSL 3.2.0-dev )"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${openssl_banner}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${openssl_banner})"
+    exit 1
+  fi
+
+
+  echo "${0} openssl path  "
+  testresult="/usr/bin/openssl"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${openssl_path}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${openssl_path})"
+    exit 1
+  fi
+
+
 
   #echo $filebeat_path
+
+  #########################################################################
+  echo ">"
+  echo "Testing Tomcat"
+  dockerTagTomcat="tomcat:jre17-temurin-jammy"
+  tomcat_version
+  
+  echo "${0} tomcat version  "
+  testresult="10.1.13.0"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${tomcat_version}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${tomcat_version})"
+    exit 1
+  fi
+
+
+  echo "${0} tomcat banner  "
+  testresult="Apache Tomcat/10.1.13"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${tomcat_banner}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${tomcat_banner})"
+    exit 1
+  fi
+
+
+  echo "${0} tomcat jvmvendor  "
+  testresult="Eclipse Adoptium"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${tomcat_jvmvendor}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${tomcat_jvmvendor})"
+    exit 1
+  fi
+
+  echo "${0} tomcat jvmversion  "
+  testresult="17.0.8.1+1"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${tomcat_jvmversion}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${tomcat_jvmversion})"
+    exit 1
+  fi
+
+
+  echo "${0} tomcat osname  "
+  testresult="Linux"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${tomcat_osname}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${tomcat_osname})"
+    exit 1
+  fi
+
+
+  echo "${0} tomcat osversion  "
+  testresult="5.15.0-86-generic"
+  echo -n "Test expects: '${testresult}' as result "
+  if [ "${tomcat_osversion}" = "${testresult}" ];then
+    echo "OK"
+  else
+    echo "ERROR (${tomcat_osversion})"
+    exit 1
+  fi
+
+
+
 
 }
 
@@ -439,7 +572,7 @@ esac
 
 
 
-exit
+exit 1
 
 
 
@@ -453,43 +586,13 @@ exit
 
 
 
-#command_exists "java"
+
 
 dockerTagJava="openjdk:22-slim-bookworm"
-java_version
 echo "JAVA:  ${java_version},${java_path},${java_runtime}"
 
-#dockerTagJava="eclipse-temurin:17-jre"
-#java_version
-#echo "JAVA:  ${java_version},${java_path},${java_runtime}"
-
-#dockerTagJava="java:8u111-jdk-alpine"
-#java_version
-#echo "JAVA:  ${java_version},${java_path},${java_runtime}"
-
-#dockerTagJava="java:8u111-jre-alpine"
-#java_version
-#echo "JAVA:  ${java_version},${java_path},${java_runtime}"
-
-
+dockerTagJava="eclipse-temurin:17-jre"
+dockerTagJava="java:8u111-jdk-alpine"
+dockerTagJava="java:8u111-jre-alpine"
 dockerTagJava="java:8u20"
-java_version
-echo "JAVA:  ${java_version},${java_path},${java_runtime}"
 
-
-
-# test variables.
-
-dockerTagOpenssl="openquantumsafe/openssl3"
-openssl_version
-echo "SSL : '${openssl_banner}','${openssl_version}',${openssl_path}"
-
-
-dockerTagTomcat="tomcat:jre17-temurin-jammy"
-tomcat_version
-echo "TCAT : '${tomcat_banner}' '${tomcat_jvmvendor}' '${tomcat_jvmversion}' "
-
-
-dockerTagFilebeat="elastic/filebeat:8.10.2"
-filebeat_version
-echo "FBEAT: '${filebeat_version}',${filebeat_path}"
